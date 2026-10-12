@@ -1,0 +1,1439 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Voirie communale — Simeyrols</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@9.2.4/ol.css">
+<script src="https://cdn.jsdelivr.net/npm/ol@9.2.4/dist/ol.js"></script>
+<style>
+  /* Charte reprise de l'application « Plan du cimetière » (valeurs estimées d'après capture d'écran) */
+  :root {
+    --navy: #0e1c34; --navy-hover: #1f2e48; --on-navy: #f4f6fa; --on-navy-muted: #9aa6bb;
+    --teal: #17a589; --teal-dark: #0f7f6c;
+    --bg: #f1f1ee; --card: #ffffff; --ink: #13202e; --muted: #6b7480; --line: #e1e2dd;
+    --radius: 14px; --sidebar-w: 260px; --info-w: 340px;
+    --font: "Plus Jakarta Sans", "Segoe UI", -apple-system, Arial, sans-serif;
+    --serif: Georgia, "Times New Roman", serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; font-family: var(--font); color: var(--ink); background: var(--bg); }
+  body { display: grid; grid-template-columns: var(--sidebar-w) 1fr; }
+  button { font-family: inherit; }
+
+  /* ---------- Barre latérale ---------- */
+  #sidebar {
+    background: var(--navy); color: var(--on-navy);
+    padding: 20px 16px 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px;
+  }
+  .brand { display: flex; align-items: center; gap: 12px; padding: 12px; background: rgba(255,255,255,.07); border-radius: 12px; margin-bottom: 10px; }
+  .brand .logo { width: 38px; height: 38px; border-radius: 10px; background: var(--teal); color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 14px; flex: none; }
+  .brand .name { font-weight: 700; font-size: 16px; line-height: 1.2; }
+  .brand .sub { font-size: 12px; color: var(--on-navy-muted); }
+  .side-title { font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--on-navy-muted); margin: 14px 6px 4px; }
+  .toggle { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 6px; font-weight: 600; font-size: 14px; cursor: pointer; }
+  .toggle input[type=checkbox] {
+    appearance: none; -webkit-appearance: none; flex: none; margin: 0;
+    width: 20px; height: 20px; border-radius: 5px; background: #fff; cursor: pointer;
+  }
+  .toggle input[type=checkbox]:checked {
+    background: var(--teal) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'><path d='M5 10.5l3.2 3.2L15 6.8' fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/></svg>") center/100% no-repeat;
+  }
+  .toggle input:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+  .slider-row { padding: 0 6px 6px; font-size: 12px; color: var(--on-navy-muted); }
+  .slider-row input[type=range] { width: 100%; accent-color: var(--teal); margin: 4px 0 0; }
+  .tool { display: flex; align-items: center; gap: 12px; padding: 10px 12px; margin: 0 -6px; border-radius: 10px; font-weight: 600; font-size: 14px; cursor: pointer; user-select: none; }
+  .tool:hover { background: var(--navy-hover); }
+  .tool.active { background: var(--teal-dark); }
+  .tool .ico { width: 20px; text-align: center; }
+  .side-input { margin: 4px 0 2px; }
+  .side-input label { display: block; font-size: 12px; color: var(--on-navy-muted); margin: 0 6px 4px; }
+  .side-input input { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,.18); background: rgba(255,255,255,.07); color: #fff; font-size: 13px; font-family: inherit; }
+  .side-input input::placeholder { color: var(--on-navy-muted); }
+  .side-note { font-size: 11px; color: var(--on-navy-muted); padding: 2px 6px; line-height: 1.4; }
+  #legend { padding: 0 6px; }
+  #legend div, .legend-pins div { display: flex; align-items: center; gap: 10px; margin: 5px 0; font-size: 13px; }
+  #legend .swatch { width: 18px; height: 5px; border-radius: 3px; display: inline-block; flex: none; }
+  .legend-pins { padding: 0 6px; margin-top: 6px; }
+  .legend-pins .dot { width: 12px; height: 12px; border-radius: 50%; border: 2px solid #fff; flex: none; }
+  .legend-title { font-family: var(--serif); font-weight: 700; font-size: 15px; margin: 4px 6px 6px; }
+  .legend-lines { padding: 0 6px; margin-top: 8px; font-size: 12px; color: var(--on-navy-muted); }
+  .legend-lines span.l { display: inline-block; width: 18px; height: 3px; vertical-align: middle; margin-right: 8px; background: #fff; }
+  .legend-lines span.l.dashed { background: repeating-linear-gradient(90deg, #fff 0 4px, transparent 4px 8px); }
+  #warn { margin: 12px 0 0; background: rgba(240,195,109,.12); border: 1px solid rgba(240,195,109,.35); border-radius: 10px; padding: 10px 12px; font-size: 12px; color: #f3dca6; line-height: 1.45; }
+  #zoomstate { margin: auto 6px 0; padding-top: 14px; font-size: 11px; color: var(--on-navy-muted); }
+
+  /* ---------- Zone principale ---------- */
+  main { padding: 22px 28px 18px; display: grid; grid-template-rows: auto 1fr; gap: 16px; min-width: 0; min-height: 0; height: 100vh; height: 100dvh; }
+  header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  header h1 { margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -.01em; }
+  header p { margin: 4px 0 0; font-size: 13px; color: var(--muted); }
+  .head-actions { display: flex; gap: 10px; align-items: center; }
+  .search { position: relative; width: 340px; max-width: 100%; }
+  .search input {
+    width: 100%; padding: 10px 34px 10px 40px; font-size: 14px; font-family: inherit; color: var(--ink);
+    border: 1px solid #d5d7d1; border-radius: 12px; background: #fff;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236b7480' stroke-width='2' stroke-linecap='round'><circle cx='11' cy='11' r='7'/><path d='M20 20l-4-4'/></svg>");
+    background-repeat: no-repeat; background-position: 12px center; background-size: 18px;
+  }
+  .search input:focus { outline: 2px solid rgba(23,165,137,.35); border-color: var(--teal); }
+  .search .clear { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); border: 0; background: none; font-size: 16px; color: var(--muted); cursor: pointer; display: none; padding: 4px 6px; }
+  #search-results {
+    position: absolute; top: calc(100% + 6px); right: 0; width: max(100%, 380px); max-width: 94vw; background: #fff;
+    border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.18);
+    max-height: 62vh; overflow: auto; z-index: 150; display: none;
+  }
+  .sr-group { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); padding: 10px 14px 4px; }
+  .sr-item { padding: 8px 14px; cursor: pointer; font-size: 14px; display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+  .sr-item small { color: var(--muted); font-size: 12px; text-align: right; }
+  .sr-item.active, .sr-item:hover { background: #eef5f2; }
+  .sr-empty { padding: 14px; color: var(--muted); font-size: 13px; }
+  .chip { display: inline-block; margin: 2px 4px 2px 0; padding: 4px 10px; border-radius: 999px; border: 1px solid #d5d7d1; background: #fff; font: 600 12px var(--font); cursor: pointer; }
+  .chip:hover { background: #eef5f2; border-color: var(--teal); }
+  #menu-btn { display: none; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; padding: 9px 14px; background: #fff; color: var(--ink); border: 1px solid #d5d7d1; border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer; }
+  .btn:hover { background: #f3f4f1; }
+  .btn.primary { background: var(--teal-dark); border-color: var(--teal-dark); color: #fff; }
+  .btn.primary:hover { background: var(--teal); }
+  .btn.danger { color: #b91c1c; border-color: #f0c4c4; }
+  .btn:disabled { opacity: .55; cursor: default; }
+  .content { display: grid; grid-template-columns: 1fr var(--info-w); gap: 20px; min-height: 0; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); }
+  #map-card { position: relative; overflow: hidden; min-height: 0; }
+  #map { position: absolute; inset: 0; background: #eef0ea; }
+  .ol-zoom { top: auto; left: auto; right: 14px; bottom: 44px; background: none; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  .ol-zoom button { margin: 0; width: 38px; height: 38px; border-radius: 10px; background: #fff; color: var(--ink); font-size: 22px; font-weight: 600; box-shadow: 0 1px 4px rgba(0,0,0,.25); }
+  .ol-zoom button:hover, .ol-zoom button:focus { background: #f3f4f1; color: var(--ink); }
+  .ol-attribution { right: 8px; bottom: 8px; border-radius: 8px; }
+
+  #modebar {
+    position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 5; display: none;
+    background: var(--navy); color: #fff; border-radius: 12px; padding: 10px 12px 10px 16px; gap: 14px; align-items: center;
+    box-shadow: 0 4px 16px rgba(0,0,0,.3); max-width: calc(100% - 24px);
+  }
+  #modebar .txt { font-size: 13px; font-weight: 600; line-height: 1.35; }
+  #modebar .btn { padding: 7px 12px; }
+  #toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--navy); color: #fff; padding: 10px 16px; border-radius: 10px; font-size: 13px; z-index: 200; display: none; max-width: 90vw; }
+
+  /* ---------- Fiche ---------- */
+  #info { padding: 20px 22px; overflow-y: auto; min-height: 0; }
+  #info-empty { color: var(--muted); font-size: 14px; line-height: 1.5; }
+  #info-empty strong { display: block; color: var(--ink); font-size: 15px; margin-bottom: 4px; }
+  #info-content { display: none; }
+  .kicker { font-size: 13px; font-weight: 600; color: var(--ink); }
+  .title-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 4px 0 14px; }
+  #info-title { font-size: 28px; font-weight: 800; letter-spacing: -.02em; line-height: 1.1; word-break: break-word; }
+  .pill { display: inline-block; padding: 4px 11px; border-radius: 999px; font-size: 12px; font-weight: 700; background: #eceee9; color: var(--ink); white-space: nowrap; }
+  .pill.solid { color: #fff; }
+  #info hr { border: 0; border-top: 1px solid var(--line); margin: 0 0 12px; }
+  #info .row { margin: 10px 0; font-size: 14px; }
+  #info .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  #info .lbl { color: var(--muted); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px; }
+  #info select, #info input, #info textarea { width: 100%; font-size: 14px; padding: 8px 10px; background: #fff; color: var(--ink); border: 1px solid #d5d7d1; border-radius: 8px; font-family: inherit; }
+  #info select:focus, #info input:focus, #info textarea:focus { outline: 2px solid rgba(23,165,137,.35); border-color: var(--teal); }
+  #info input[readonly] { background: #f3f4f1; color: var(--muted); }
+  #info textarea { resize: vertical; min-height: 54px; }
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+  .btn-row .btn { flex: 1 1 auto; justify-content: center; }
+  #info-status { font-size: 12px; margin-top: 8px; min-height: 16px; }
+  .note-bar { border-left: 3px solid var(--teal-dark); background: #f1f2ef; padding: 10px 12px; font-size: 12px; color: var(--muted); margin-top: 12px; }
+  .meta { font-size: 12px; color: var(--muted); }
+
+  /* ---------- Fenêtres (historique, statistiques) ---------- */
+  #modal-root:empty { display: none; }
+  .modal-backdrop { position: fixed; inset: 0; background: rgba(14,28,52,.45); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 16px; }
+  .modal { width: min(1000px, 100%); max-height: 90vh; display: flex; flex-direction: column; background: #fff; border-radius: var(--radius); overflow: hidden; }
+  .modal-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 18px 22px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .modal-head h2 { margin: 0; font-size: 20px; font-weight: 800; }
+  .modal-head .sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .modal-actions { display: flex; gap: 8px; }
+  .modal-body { padding: 18px 22px 24px; overflow: auto; }
+  .filters { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+  .filters label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); display: flex; flex-direction: column; gap: 4px; }
+  .filters select { padding: 8px 10px; border: 1px solid #d5d7d1; border-radius: 8px; font-size: 13px; font-family: inherit; min-width: 170px; }
+  .modal h3 { font-family: var(--serif); font-size: 16px; margin: 20px 0 8px; }
+  .modal h3:first-child { margin-top: 0; }
+  table.data { border-collapse: collapse; width: 100%; font-size: 13px; }
+  table.data th { text-align: left; background: #f1f2ef; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); padding: 8px 10px; }
+  table.data td { padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  table.data .n { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  table.data tr.total td { font-weight: 800; border-top: 2px solid var(--ink); }
+  table.data tr.clickable { cursor: pointer; }
+  table.data tr.clickable:hover td { background: #f7f8f5; }
+  .empty-msg { color: var(--muted); font-size: 14px; padding: 18px 0; }
+  .swatch-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+
+  /* ---------- Responsive ---------- */
+  @media (max-width: 1100px) { :root { --sidebar-w: 220px; --info-w: 300px; } main { padding: 16px; } }
+  @media (max-width: 800px) {
+    body { grid-template-columns: 1fr; }
+    #sidebar { position: fixed; z-index: 60; top: 0; bottom: 0; left: 0; width: 280px; transform: translateX(-105%); transition: transform .2s; }
+    #sidebar.open { transform: none; box-shadow: 0 0 40px rgba(0,0,0,.4); }
+    #menu-btn { display: inline-flex; }
+    main { padding: 12px; gap: 10px; }
+    header h1 { font-size: 20px; }
+    header p { display: none; }
+    .head-actions { flex-wrap: wrap; width: 100%; }
+    .search { width: 100%; order: -1; }
+    #search-results { width: 100%; }
+    .content { grid-template-columns: 1fr; }
+    #info { display: none; position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; max-height: 58vh; border-radius: 14px 14px 0 0; box-shadow: 0 -4px 20px rgba(0,0,0,.25); }
+    body.has-info #info { display: block; }
+    body.in-mode #info { display: none; }
+    #modebar { left: 12px; right: 12px; top: auto; bottom: 12px; transform: none; flex-wrap: wrap; justify-content: space-between; }
+    #modebar .txt { flex: 1 1 100%; }
+    .ol-zoom { bottom: auto; top: 12px; }
+    .modal-body { padding: 14px; }
+  }
+
+  /* ---------- Impression ---------- */
+  @media print {
+    html, body { height: auto; background: #fff; }
+    body { display: block !important; }
+    #sidebar, main, #toast { display: none !important; }
+    .modal-backdrop { position: static; background: none; padding: 0; display: block; }
+    .modal { width: 100%; max-height: none; border-radius: 0; overflow: visible; }
+    .modal-body { overflow: visible; padding: 0; }
+    .no-print { display: none !important; }
+    .modal-head { padding: 0 0 10px; }
+    table.data tr { page-break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<aside id="sidebar">
+  <div class="brand">
+    <div class="logo">SI</div>
+    <div>
+      <div class="name">Simeyrols</div>
+      <div class="sub">Voirie communale</div>
+    </div>
+  </div>
+
+  <div class="side-title" style="margin-top:0">Calques</div>
+  <label class="toggle">Voirie <input type="checkbox" id="toggle-chemins" checked></label>
+  <label class="toggle">Voirie retenue DGF 2026 <input type="checkbox" id="toggle-dgf" checked></label>
+  <label class="toggle">Cadastre <input type="checkbox" id="toggle-parcelles" checked></label>
+  <label class="toggle">Adresses et lieux-dits <input type="checkbox" id="toggle-adresses" checked></label>
+  <label class="toggle">Repères <input type="checkbox" id="toggle-reperes" checked></label>
+  <label class="toggle">Photo aérienne <input type="checkbox" id="toggle-ortho"></label>
+  <div class="slider-row">Opacité de la photo : <span id="ortho-op-val">100 %</span>
+    <input type="range" id="ortho-opacity" min="0" max="100" value="100">
+  </div>
+
+  <div class="side-title">Outils</div>
+  <div class="tool" id="tool-repere"><span class="ico">📍</span> Poser un repère</div>
+  <div class="tool" id="tool-draw"><span class="ico">✏️</span> Créer une voie</div>
+  <div class="side-input">
+    <label for="agent-name">Votre nom (repères et historique)</label>
+    <input id="agent-name" type="text" placeholder="ex : A. Martin" autocomplete="name">
+  </div>
+
+  <div class="side-title">Données</div>
+  <div class="tool" id="tool-export"><span class="ico">⬇️</span> Exporter les modifications</div>
+  <div class="tool" id="tool-import"><span class="ico">⬆️</span> Importer des modifications</div>
+  <input type="file" id="import-file" accept="application/json,.json" style="display:none">
+  <div class="side-note">Les modifications sont enregistrées sur cet appareil uniquement. Exportez-les pour les conserver ou les partager.</div>
+
+  <div class="side-title">Légende</div>
+  <div class="legend-title">Type de voie</div>
+  <div id="legend"></div>
+  <div class="legend-lines">
+    <span class="l"></span>tracé réel (SIG)<br>
+    <span class="l dashed"></span>tracé simplifié Début→Fin
+  </div>
+  <div class="legend-title" style="margin-top:12px">Voirie retenue DGF 2026</div>
+  <div class="legend-pins" id="legend-dgf"></div>
+  <div class="legend-title" style="margin-top:12px">Repères</div>
+  <div class="legend-pins" id="legend-pins"></div>
+
+  <div id="warn">
+    <strong>Note prototype :</strong> 58/73 voies en tracé réel (SIG), 14 en tracé simplifié Début→Fin, 1 (n°73) sans coordonnées.
+  </div>
+  <div id="zoomstate"></div>
+</aside>
+
+<main>
+  <header>
+    <div style="display:flex;gap:12px;align-items:flex-start">
+      <button class="btn" id="menu-btn" aria-label="Menu">☰</button>
+      <div>
+        <h1>Carte de la voirie communale</h1>
+        <p id="subtitle">Commune de Simeyrols</p>
+      </div>
+    </div>
+    <div class="head-actions">
+      <div class="search">
+        <input id="search-input" type="text" placeholder="Adresse, lieu-dit, parcelle (B 456), voie n°…" autocomplete="off" aria-label="Rechercher un lieu">
+        <button class="clear" id="search-clear" aria-label="Effacer la recherche">✕</button>
+        <div id="search-results"></div>
+      </div>
+      <button class="btn" id="btn-history">🕘 Historique</button>
+      <button class="btn" id="btn-stats">📊 Liste et statistiques</button>
+    </div>
+  </header>
+  <div class="content">
+    <div id="map-card" class="card">
+      <div id="map"></div>
+      <div id="modebar"><span class="txt" id="modebar-text"></span><button class="btn primary" id="mb-done">Terminer</button><button class="btn" id="mb-cancel">Annuler</button></div>
+    </div>
+    <section id="info" class="card">
+      <div id="info-empty">
+        <strong>Aucune sélection</strong>
+        Cliquez sur une voie, un repère ou une parcelle pour afficher sa fiche.
+      </div>
+      <div id="info-content">
+        <div class="kicker" id="info-kicker"></div>
+        <div class="title-row"><span id="info-title"></span><span id="info-badges"></span></div>
+        <hr>
+        <div id="info-body"></div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<div id="modal-root"></div>
+<div id="toast"></div>
+
+<script>
+/* ============================================================
+   Constantes
+   ============================================================ */
+const COLORS = {
+  "Carrossable": "#2b8cbe", "Sentier": "#74c476", "Impasse": "#fd8d3c",
+  "Non praticable": "#de2d26", "Tronçon": "#9e9ac8", "Goudronné": "#636363", "null": "#999999"
+};
+const DGF_COLORS = { '4': '#c2185b', '5': '#ec7fb6' };
+const DGF_IMPORTANCE = {
+  '4': 'Voies permettant de se déplacer rapidement à l\'intérieur d\'une commune et, en zone rurale, de relier le bourg aux hameaux proches',
+  '5': 'Voies circulables permettant de desservir l\'intérieur d\'une commune'
+};
+let selectedDgf = null;
+const REPERE_COLORS = { "À faire": "#d97706", "En cours": "#2563eb", "Fait": "#16a34a" };
+const TYPE_OPTIONS = ['', 'Carrossable', 'Goudronné', 'Impasse', 'Tronçon', 'Non praticable', 'Sentier'];
+const SITUATION_OPTIONS = ['Non renseignée', 'Mal cadastrée', 'À recadastrer partiellement', 'À recadastrer totalement'];
+const ETAT_OPTIONS = ['', 'Bon', 'Praticable', 'Mauvais', 'Non visible'];
+const PRIORITE_OPTIONS = ['Basse', 'Normale', 'Haute', 'Urgente'];
+const STATUT_OPTIONS = ['À faire', 'En cours', 'Fait'];
+// 73 voies existent dans Airtable (la n°73 n'a pas de tracé) : les voies créées sur la carte démarrent à 74.
+const BASE_MAX_NUMERO = 73;
+const FIELDS = [
+  ['type', 'Type'], ['situation_cadastrale', 'Situation cadastrale'], ['etat', 'État'],
+  ['longueur', 'Longueur (m)'], ['superficie', 'Superficie (m²)'],
+  ['historique', 'Historique cadastral'], ['observations', 'Observations']
+];
+const EVENT_LABELS = {
+  repere_pose: 'Repère posé', repere_statut: 'Statut du repère', repere_modifie: 'Repère modifié',
+  repere_supprime: 'Repère supprimé', trace_modifie: 'Tracé modifié', voie_creee: 'Voie créée',
+  voie_supprimee: 'Voie supprimée', fiche_modifiee: 'Fiche modifiée',
+  dgf_fiche: 'Voirie DGF : fiche modifiée', dgf_trace: 'Voirie DGF : tracé modifié'
+};
+
+/* ============================================================
+   Utilitaires
+   ============================================================ */
+const $ = id => document.getElementById(id);
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+}
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const fmt = n => Math.round(n || 0).toLocaleString('fr-FR');
+const fmtDate = iso => iso ? new Date(iso).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }) : '—';
+let toastTimer = null;
+function toast(msg) {
+  const t = $('toast'); t.textContent = msg; t.style.display = 'block';
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.style.display = 'none'; }, 3500);
+}
+function selectHtml(id, options, current) {
+  return '<select id="' + id + '">' + options.map(o =>
+    '<option value="' + esc(o) + '"' + (o === (current || '') ? ' selected' : '') + '>' + (esc(o) || '—') + '</option>').join('') + '</select>';
+}
+const geojson = new ol.format.GeoJSON();
+const toGeomObj = g => geojson.writeGeometryObject(g, { featureProjection: 'EPSG:3857', dataProjection: 'EPSG:4326', decimals: 7 });
+const fromGeomObj = o => geojson.readGeometry(o, { dataProjection: 'EPSG:4326', featureProjection: 'EPSG:3857' });
+const geomLength = g => ol.sphere.getLength(g, { projection: 'EPSG:3857' });
+
+/* ============================================================
+   Stockage local (modifications de cet appareil)
+   ============================================================ */
+const STORE_KEY = 'simeyrols_edits_v1';
+const AGENT_KEY = 'simeyrols_agent_name';
+const emptyStore = () => ({ attrs: {}, geoms: {}, created: [], reperes: [], history: [], dgf: {} });
+function loadStore() {
+  try { return Object.assign(emptyStore(), JSON.parse(localStorage.getItem(STORE_KEY)) || {}); }
+  catch (e) { return emptyStore(); }
+}
+let store = loadStore();
+function saveStore() {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(store)); }
+  catch (e) { toast("⚠️ Stockage local indisponible : les modifications ne seront pas conservées."); }
+}
+function getAgent() { try { return localStorage.getItem(AGENT_KEY) || ''; } catch (e) { return ''; } }
+function setAgent(v) { try { localStorage.setItem(AGENT_KEY, v); } catch (e) {} }
+function logEvent(type, o) {
+  store.history.push(Object.assign({ id: uid(), ts: new Date().toISOString(), type, auteur: getAgent() || '—' }, o || {}));
+  saveStore();
+}
+
+/* ============================================================
+   Légendes
+   ============================================================ */
+Object.entries(COLORS).forEach(([k, v]) => {
+  const div = document.createElement('div');
+  div.innerHTML = '<span class="swatch" style="background:' + v + '"></span>' + (k === "null" ? "Non renseigné" : k);
+  $('legend').appendChild(div);
+});
+[['4', 'Importance 4'], ['5', 'Importance 5']].forEach(([k, label]) => {
+  const div = document.createElement('div');
+  div.innerHTML = '<span class="swatch" style="background:' + DGF_COLORS[k] + '"></span>' + label;
+  $('legend-dgf').appendChild(div);
+});
+Object.entries(REPERE_COLORS).forEach(([k, v]) => {
+  const div = document.createElement('div');
+  div.innerHTML = '<span class="dot" style="background:' + v + '"></span>' + k;
+  $('legend-pins').appendChild(div);
+});
+
+/* ============================================================
+   Fonds de carte
+   ============================================================ */
+const wmtsResolutions = [], wmtsMatrixIds = [];
+for (let z = 0; z <= 19; z++) { wmtsResolutions.push(156543.03392804097 / Math.pow(2, z)); wmtsMatrixIds.push(z.toString()); }
+const wmtsTileGrid = new ol.tilegrid.WMTS({
+  origin: [-20037508.342789244, 20037508.342789244], resolutions: wmtsResolutions, matrixIds: wmtsMatrixIds
+});
+
+// Fond « Plan IGN » (Géoplateforme IGN, Licence Ouverte) — remplace OpenStreetMap pour une diffusion publique.
+const fond = new ol.layer.Tile({
+  source: new ol.source.WMTS({
+    url: 'https://data.geopf.fr/wmts', layer: 'GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2', matrixSet: 'PM_0_19',
+    format: 'image/png', style: 'normal', tileGrid: wmtsTileGrid, requestEncoding: 'KVP', attributions: '© IGN — Plan IGN'
+  })
+});
+
+// BD ORTHO IGN (couche la plus récente de la Géoplateforme, licence ouverte).
+// Date de prise de vue pour la Dordogne à vérifier sur :
+// https://data.geopf.fr/annexes/ressources/fiches/photographies-aeriennes-RVB/geoportail_dates_des_prises_de_vues_aeriennes-RVB.pdf
+const ortho = new ol.layer.Tile({
+  visible: false,
+  source: new ol.source.WMTS({
+    url: 'https://data.geopf.fr/wmts', layer: 'ORTHOIMAGERY.ORTHOPHOTOS', matrixSet: 'PM_0_19',
+    format: 'image/jpeg', style: 'normal', tileGrid: wmtsTileGrid, requestEncoding: 'KVP', attributions: '© IGN — BD ORTHO'
+  })
+});
+
+/* ============================================================
+   Couches de données
+   ============================================================ */
+let currentFeature = null;   // voie sélectionnée
+let currentRepere = null;    // repère sélectionné
+let selectedParcel = null;
+let editFeature = null;      // voie dont le tracé est en cours d'édition
+let mode = 'select';         // select | repere | draw | edit
+let editKind = 'voie';       // voie | dgf (nature de l'objet dont le tracé est édité)
+
+const chemVector = new ol.source.Vector({ url: 'simeyrols_chemins_wgs84.geojson', format: geojson });
+
+const WIDTH_MIN = 2.5, WIDTH_MAX = 6, WIDTH_ZOOM_START = 13, WIDTH_ZOOM_END = 19;
+function widthForZoom(zoom) {
+  const t = Math.max(0, Math.min(1, (zoom - WIDTH_ZOOM_START) / (WIDTH_ZOOM_END - WIDTH_ZOOM_START)));
+  return WIDTH_MIN + t * (WIDTH_MAX - WIDTH_MIN);
+}
+function vertexCoords(geom) {
+  const out = [];
+  (function walk(c) { if (typeof c[0] === 'number') out.push(c); else c.forEach(walk); })(geom.getCoordinates());
+  return out;
+}
+const vertexStyle = new ol.style.Style({
+  image: new ol.style.Circle({ radius: 5.5, fill: new ol.style.Fill({ color: '#fff' }), stroke: new ol.style.Stroke({ color: '#0f7f6c', width: 2.5 }) }),
+  geometry: f => new ol.geom.MultiPoint(vertexCoords(f.getGeometry()))
+});
+function cheminStyle(feature, resolution) {
+  const color = COLORS[feature.get('type')] || COLORS['null'];
+  const isReal = !String(feature.get('source_geom') || '').startsWith('Début-Fin');
+  const zoom = map.getView().getZoomForResolution(resolution);
+  const width = widthForZoom(zoom) * (isReal ? 1 : 0.75);
+  const line = new ol.style.Style({ stroke: new ol.style.Stroke({ color, width, lineDash: isReal ? undefined : [6, 5] }) });
+  if (feature === editFeature) {
+    return [new ol.style.Style({ stroke: new ol.style.Stroke({ color: 'rgba(255,255,255,.95)', width: width + 5 }) }), line, vertexStyle];
+  }
+  if (feature === currentFeature) {
+    return [new ol.style.Style({ stroke: new ol.style.Stroke({ color: 'rgba(255,255,255,.9)', width: width + 4 }) }), line];
+  }
+  return line;
+}
+const cheminLayer = new ol.layer.Vector({ source: chemVector, style: cheminStyle });
+
+// Parcelles vecteur — Etalab/DGFiP (PCI Vecteur, millésime juin 2026, Licence Ouverte), commune 24535
+const parcelVector = new ol.source.Vector({ url: 'cadastre-24535-parcelles.geojson', format: geojson });
+const PARCEL_LABEL_ZOOM = 17;
+function parcelStyle(feature, resolution) {
+  const zoom = map.getView().getZoomForResolution(resolution);
+  const selected = feature === selectedParcel;
+  return new ol.style.Style({
+    stroke: new ol.style.Stroke({ color: selected ? '#0f7f6c' : 'rgba(90,70,20,0.75)', width: selected ? 3 : 1 }),
+    fill: new ol.style.Fill({ color: selected ? 'rgba(23,165,137,0.25)' : 'rgba(255,255,255,0.01)' }),
+    text: zoom >= PARCEL_LABEL_ZOOM ? new ol.style.Text({
+      text: feature.get('section') + ' ' + feature.get('numero'),
+      font: '600 11px "Plus Jakarta Sans", sans-serif',
+      fill: new ol.style.Fill({ color: '#5a4614' }),
+      stroke: new ol.style.Stroke({ color: 'rgba(255,255,255,0.9)', width: 3 }), overflow: false
+    }) : undefined
+  });
+}
+const parcelLayer = new ol.layer.Vector({ source: parcelVector, style: parcelStyle, declutter: true });
+
+// Voirie communale retenue pour la DSR (DGF) 2026 — IGN / DGCL, BD TOPO® édition décembre 2025, Licence Ouverte.
+// Extrait WFS data.geopf.fr (couche DGF_2026_:_voirie-retenue-communes), emprise de la commune + marge,
+// dont les tronçons ont été regroupés en lignes continues par importance (scripts/dgf_regroupement.py).
+const dgfVector = new ol.source.Vector({
+  url: 'dgf-2026-voirie-retenue-regroupee.geojson', format: geojson,
+  attributions: '© IGN — BD TOPO® · DGCL (voirie retenue DGF 2026)'
+});
+const dgfLabel = f => f.get('nom') || f.get('ref');
+const dgfCenter = f => ol.proj.toLonLat(ol.extent.getCenter(f.getGeometry().getExtent()));
+dgfVector.once('featuresloadend', () => {
+  dgfVector.getFeatures().forEach(f => {
+    f.set('orig_geom', f.getGeometry().clone());
+    const o = store.dgf[f.get('id')];
+    if (!o) return;
+    if (o.nom) f.set('nom', o.nom);
+    if (o.observations) f.set('observations', o.observations);
+    if (o.geometry) { f.setGeometry(fromGeomObj(o.geometry)); f.set('trace_modifie', true); }
+  });
+});
+function dgfStyle(feature, resolution) {
+  const zoom = map.getView().getZoomForResolution(resolution);
+  const w = widthForZoom(zoom) * 0.8;
+  const nom = feature.get('nom');
+  const line = new ol.style.Style({
+    stroke: new ol.style.Stroke({ color: DGF_COLORS[feature.get('importance')] || '#c2185b', width: w }),
+    text: nom && zoom >= 15 ? new ol.style.Text({
+      text: nom, placement: 'line', overflow: true, font: '600 12px "Plus Jakarta Sans", sans-serif',
+      fill: new ol.style.Fill({ color: '#7a0c3d' }), stroke: new ol.style.Stroke({ color: 'rgba(255,255,255,.95)', width: 3 })
+    }) : undefined
+  });
+  if (feature === editFeature) {
+    return [new ol.style.Style({ stroke: new ol.style.Stroke({ color: 'rgba(255,255,255,.95)', width: w + 5 }) }), line, vertexStyle];
+  }
+  return feature === selectedDgf
+    ? [new ol.style.Style({ stroke: new ol.style.Stroke({ color: 'rgba(255,255,255,.95)', width: w + 5 }) }), line]
+    : line;
+}
+const dgfLayer = new ol.layer.Vector({ source: dgfVector, style: dgfStyle });
+
+// Repères
+const repereSource = new ol.source.Vector();
+const pinCache = {};
+function pinStyle(statut, glyph, selected) {
+  const key = statut + glyph + selected;
+  if (!pinCache[key]) {
+    const color = REPERE_COLORS[statut] || '#d97706';
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="34" height="44" viewBox="0 0 34 44"><path d="M17 43C17 43 3 27 3 16a14 14 0 0 1 28 0c0 11-14 27-14 27z" fill="' + color + '" stroke="#fff" stroke-width="2.5"/><text x="17" y="22" text-anchor="middle" font-family="Arial,sans-serif" font-size="16" font-weight="700" fill="#fff">' + glyph + '</text></svg>';
+    pinCache[key] = new ol.style.Style({
+      image: new ol.style.Icon({ src: 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg), anchor: [0.5, 1], scale: selected ? 1.15 : 0.85 }),
+      zIndex: selected ? 2 : 1
+    });
+  }
+  return pinCache[key];
+}
+function repereStyle(f) {
+  const statut = f.get('statut');
+  const glyph = statut === 'Fait' ? '✓' : (['Haute', 'Urgente'].includes(f.get('priorite')) ? '!' : '•');
+  return pinStyle(statut, glyph, f === currentRepere);
+}
+const repereLayer = new ol.layer.Vector({ source: repereSource, style: repereStyle, zIndex: 20 });
+
+// Adresses (Base Adresse Nationale) et lieux-dits (cadastre Etalab) — données chargées depuis simeyrols_adressage.json
+const titleCase = s => String(s || '').toLowerCase()
+  .replace(/(^|[\s'’-])(\p{L})/gu, (m, a, b) => a + b.toUpperCase())
+  .replace(/\s(De|Du|Des|La|Le|Les|Et|Sur|Sous|En)(?=\s)/g, m => m.toLowerCase());
+const ADDR_MIN_ZOOM = 15, ADDR_LABEL_ZOOM = 17.5, LD_MAX_ZOOM = 17.5;
+const addrSource = new ol.source.Vector({ attributions: '© Base Adresse Nationale · Cadastre Etalab (Licence Ouverte)' });
+function addrStyle(f, resolution) {
+  const zoom = map.getView().getZoomForResolution(resolution);
+  if (f.get('kind') === 'ld') {
+    if (zoom < 13 || zoom >= LD_MAX_ZOOM) return null;
+    return new ol.style.Style({ text: new ol.style.Text({
+      text: titleCase(f.get('nom')), font: 'italic 600 12px "Plus Jakarta Sans", sans-serif',
+      fill: new ol.style.Fill({ color: '#475569' }), stroke: new ol.style.Stroke({ color: 'rgba(255,255,255,.95)', width: 3 }), overflow: false
+    }) });
+  }
+  if (zoom < ADDR_MIN_ZOOM) return null;
+  return new ol.style.Style({
+    image: new ol.style.Circle({ radius: zoom >= 16 ? 4.5 : 3, fill: new ol.style.Fill({ color: '#0e1c34' }), stroke: new ol.style.Stroke({ color: '#fff', width: 1.5 }) }),
+    text: zoom >= ADDR_LABEL_ZOOM ? new ol.style.Text({
+      text: String(f.get('numero')), offsetY: -12, font: '700 11px "Plus Jakarta Sans", sans-serif',
+      fill: new ol.style.Fill({ color: '#0e1c34' }), stroke: new ol.style.Stroke({ color: 'rgba(255,255,255,.95)', width: 3 })
+    }) : undefined
+  });
+}
+const addrLayer = new ol.layer.Vector({ source: addrSource, style: addrStyle, declutter: true, zIndex: 12 });
+
+// Marqueur du lieu recherché
+const searchSource = new ol.source.Vector();
+const searchLayer = new ol.layer.Vector({
+  source: searchSource, zIndex: 15,
+  style: f => [
+    new ol.style.Style({ image: new ol.style.Circle({ radius: 17, fill: new ol.style.Fill({ color: 'rgba(23,165,137,.18)' }), stroke: new ol.style.Stroke({ color: '#0f7f6c', width: 3 }) }) }),
+    new ol.style.Style({
+      image: new ol.style.Circle({ radius: 4, fill: new ol.style.Fill({ color: '#0f7f6c' }) }),
+      text: new ol.style.Text({
+        text: f.get('label') || '', offsetY: 30, font: '700 13px "Plus Jakarta Sans", sans-serif',
+        fill: new ol.style.Fill({ color: '#0e1c34' }), stroke: new ol.style.Stroke({ color: 'rgba(255,255,255,.95)', width: 4 })
+      })
+    })
+  ]
+});
+
+const map = new ol.Map({
+  target: 'map',
+  layers: [fond, ortho, parcelLayer, dgfLayer, cheminLayer, addrLayer, searchLayer, repereLayer],
+  view: new ol.View({ center: ol.proj.fromLonLat([1.31, 44.87]), zoom: 14 })
+});
+
+/* ============================================================
+   Chargement : application des modifications locales
+   ============================================================ */
+chemVector.once('featuresloadend', () => {
+  const counters = {};
+  chemVector.getFeatures().forEach(f => {
+    const n = f.get('numero');
+    counters[n] = (counters[n] || 0) + 1;
+    const key = n + '-' + counters[n];
+    f.set('key', key);
+    if (store.attrs[n]) f.setProperties(store.attrs[n]);
+    const g = store.geoms[key];
+    if (g) { f.setGeometry(fromGeomObj(g.geometry)); f.set('source_geom', g.source_geom); }
+  });
+  store.created.forEach(c => {
+    const f = new ol.Feature(Object.assign({}, c.props, { numero: c.numero, key: c.key, record_id: null, source_geom: 'Créé sur carte' }));
+    f.setGeometry(fromGeomObj(c.geometry));
+    chemVector.addFeature(f);
+  });
+  store.reperes.forEach(r => repereSource.addFeature(repereFeatureFrom(r)));
+  const fitAll = () => map.getView().fit(chemVector.getExtent(), { padding: [40, 40, 40, 40], maxZoom: 16 });
+  const size = map.getSize();
+  if (size && size[0] > 0 && size[1] > 0) fitAll(); else map.once('change:size', fitAll);
+  updateSubtitle();
+});
+
+function updateSubtitle() {
+  const nums = new Set(chemVector.getFeatures().map(f => f.get('numero')));
+  $('subtitle').textContent = 'Commune de Simeyrols · ' + nums.size + ' voies cartographiées · ' + chemVector.getFeatures().length + ' tronçons · ' + parcelVector.getFeatures().length.toLocaleString('fr-FR') + ' parcelles';
+}
+parcelVector.once('featuresloadend', updateSubtitle);
+
+/* ============================================================
+   Calques et zoom
+   ============================================================ */
+$('toggle-chemins').addEventListener('change', e => cheminLayer.setVisible(e.target.checked));
+$('toggle-reperes').addEventListener('change', e => repereLayer.setVisible(e.target.checked));
+$('toggle-adresses').addEventListener('change', e => addrLayer.setVisible(e.target.checked));
+$('toggle-dgf').addEventListener('change', e => {
+  dgfLayer.setVisible(e.target.checked);
+  if (!e.target.checked && selectedDgf) { selectedDgf = null; clearInfo(); }
+});
+$('toggle-parcelles').addEventListener('change', e => {
+  parcelLayer.setVisible(e.target.checked);
+  if (!e.target.checked && selectedParcel) { selectedParcel = null; clearInfo(); }
+});
+$('toggle-ortho').addEventListener('change', e => { ortho.setVisible(e.target.checked); updateLayersForZoom(); });
+$('ortho-opacity').addEventListener('input', e => {
+  ortho.setOpacity(e.target.value / 100);
+  $('ortho-op-val').textContent = e.target.value + ' %';
+  updateLayersForZoom();
+});
+
+// Au-delà du seuil, on masque le fond (vue "plan" épurée). Si la photo est affichée
+// avec une opacité < 100 %, le fond reste visible dessous (sous le seuil) pour que le curseur ait un effet.
+const FOND_HIDE_ZOOM = 17;
+function updateLayersForZoom() {
+  const z = map.getView().getZoom();
+  const hideFond = z >= FOND_HIDE_ZOOM;
+  const orthoCovers = ortho.getVisible() && ortho.getOpacity() >= 0.99;
+  fond.setVisible(!hideFond && !orthoCovers);
+  $('zoomstate').textContent = 'Zoom ' + z.toFixed(1) + ' — ' + (hideFond ? 'vue plan (cadastre + voies)' : 'vue avec fond de carte');
+}
+map.getView().on('change:resolution', updateLayersForZoom);
+updateLayersForZoom();
+
+/* ============================================================
+   Fiche de droite
+   ============================================================ */
+function clearInfo() {
+  $('info-content').style.display = 'none';
+  $('info-empty').style.display = 'block';
+  document.body.classList.remove('has-info');
+}
+function setInfo(kicker, title, badgesHtml, bodyHtml) {
+  $('info-kicker').textContent = kicker;
+  $('info-title').textContent = title;
+  $('info-badges').innerHTML = badgesHtml;
+  $('info-body').innerHTML = bodyHtml;
+  $('info-empty').style.display = 'none';
+  $('info-content').style.display = 'block';
+  document.body.classList.add('has-info');
+}
+function cheminBadges(f) {
+  let h = '';
+  const t = f.get('type');
+  if (t) h += '<span class="pill solid" style="background:' + (COLORS[t] || COLORS['null']) + '">' + esc(t) + '</span> ';
+  if (f.get('etat')) h += '<span class="pill">' + esc(f.get('etat')) + '</span>';
+  return h;
+}
+function clearSelection() {
+  if (currentRepere && currentRepere.get('draft')) repereSource.removeFeature(currentRepere);
+  const hadRepere = !!currentRepere, hadChemin = !!currentFeature, prevParcel = selectedParcel, prevDgf = selectedDgf;
+  currentRepere = null; currentFeature = null; selectedParcel = null; selectedDgf = null;
+  if (prevParcel) prevParcel.changed();
+  if (prevDgf) prevDgf.changed();
+  if (hadChemin) cheminLayer.changed();
+  if (hadRepere) repereLayer.changed();
+}
+
+/* ----- Voie ----- */
+const isCreated = f => f.get('source_geom') === 'Créé sur carte';
+function voieStats(numero) {
+  const feats = chemVector.getFeatures().filter(f => f.get('numero') === numero);
+  return { n: feats.length, len: feats.reduce((s, f) => s + geomLength(f.getGeometry()), 0) };
+}
+function showChemin(feature) {
+  const p = feature.getProperties();
+  const st = voieStats(p.numero);
+  setInfo(isCreated(feature) ? 'Voie créée sur la carte' : 'Voie sélectionnée', 'n°' + p.numero, cheminBadges(feature), `
+    <div class="row"><div class="lbl">Type</div>${selectHtml('f-type', TYPE_OPTIONS, p.type)}</div>
+    <div class="row"><div class="lbl">Situation cadastrale</div>${selectHtml('f-situation', SITUATION_OPTIONS, p.situation_cadastrale)}</div>
+    <div class="row"><div class="lbl">État</div>${selectHtml('f-etat', ETAT_OPTIONS, p.etat)}</div>
+    <div class="two">
+      <div class="row"><div class="lbl">Longueur (m)</div><input id="f-longueur" type="number" value="${esc(p.longueur)}"></div>
+      <div class="row"><div class="lbl">Superficie (m²)</div><input id="f-superficie" type="number" value="${esc(p.superficie)}"></div>
+    </div>
+    <div class="row"><div class="lbl">Historique cadastral</div><textarea id="f-historique">${esc(p.historique)}</textarea></div>
+    <div class="row"><div class="lbl">Observations</div><textarea id="f-observations">${esc(p.observations)}</textarea></div>
+    <div class="row meta">Tracé : ${esc(p.source_geom) || '—'} · ${st.n} tronçon${st.n > 1 ? 's' : ''} · ${fmt(st.len)} m mesurés sur la carte</div>
+    <div class="btn-row">
+      <button class="btn primary" id="info-save">Enregistrer</button>
+      <button class="btn" id="btn-edit-trace">Modifier le tracé</button>
+      ${isCreated(feature) ? '<button class="btn danger" id="btn-del-voie">Supprimer</button>' : ''}
+    </div>
+    <div id="info-status"></div>
+  `);
+  $('info-save').addEventListener('click', saveChemin);
+  $('btn-edit-trace').addEventListener('click', () => startEdit(currentFeature));
+  if ($('btn-del-voie')) $('btn-del-voie').addEventListener('click', deleteCreatedVoie);
+  cheminLayer.changed();
+}
+function readNum(id) { const v = $(id).value; return v === '' ? null : Number(v); }
+function saveChemin() {
+  const f = currentFeature, n = f.get('numero');
+  const vals = {
+    type: $('f-type').value || null, situation_cadastrale: $('f-situation').value || null, etat: $('f-etat').value || null,
+    longueur: readNum('f-longueur'), superficie: readNum('f-superficie'),
+    historique: $('f-historique').value || null, observations: $('f-observations').value || null
+  };
+  const changes = FIELDS.filter(([k]) => (f.get(k) ?? null) !== vals[k])
+    .map(([k, label]) => label + ' : ' + (f.get(k) ?? '—') + ' → ' + (vals[k] ?? '—'));
+  chemVector.getFeatures().filter(x => x.get('numero') === n).forEach(x => x.setProperties(vals));
+  const created = store.created.find(c => c.numero === n);
+  if (created) Object.assign(created.props, vals); else store.attrs[n] = vals;
+  saveStore();
+  if (changes.length) logEvent('fiche_modifiee', { chemin: n, detail: changes.join(' ; ') });
+  cheminLayer.changed();
+  $('info-badges').innerHTML = cheminBadges(f);
+  $('info-status').style.color = '#15803d';
+  $('info-status').textContent = changes.length ? '✓ Enregistré sur cet appareil.' : 'Aucune modification.';
+}
+function nextNumero() {
+  return Math.max(BASE_MAX_NUMERO, ...chemVector.getFeatures().map(f => f.get('numero'))) + 1;
+}
+function deleteCreatedVoie() {
+  const f = currentFeature, n = f.get('numero');
+  if (!confirm('Supprimer définitivement la voie n°' + n + ' créée sur la carte ?')) return;
+  chemVector.removeFeature(f);
+  store.created = store.created.filter(c => c.numero !== n);
+  saveStore();
+  logEvent('voie_supprimee', { chemin: n, detail: 'Voie créée sur carte supprimée' });
+  clearSelection(); clearInfo(); updateSubtitle();
+}
+
+/* ----- Voirie retenue DGF ----- */
+function showDgf(f) {
+  const p = f.getProperties();
+  const ids = Array.isArray(p.cleabs_list) ? p.cleabs_list : [];
+  setInfo('Voirie retenue DGF 2026', dgfLabel(f),
+    '<span class="pill solid" style="background:' + (DGF_COLORS[p.importance] || '#c2185b') + '">Importance ' + esc(p.importance) + '</span>', `
+    <div class="row"><div class="lbl">Nom de la voie</div><input id="d-nom" type="text" value="${esc(p.nom)}" placeholder="${esc(p.ref)} — saisir le nom"></div>
+    <div class="row"><div class="lbl">Nature (BD TOPO®)</div><input type="text" value="${esc(p.nature)}" readonly></div>
+    <div class="row"><div class="lbl">Importance (BD TOPO®)</div><input type="text" value="${esc(p.importance)}" readonly></div>
+    <div class="row meta">${esc(DGF_IMPORTANCE[p.importance] || '')}</div>
+    <div class="row"><div class="lbl">Observations</div><textarea id="d-obs">${esc(p.observations)}</textarea></div>
+    <div class="row meta">Tracé : ${p.trace_modifie ? 'corrigé sur carte' : 'BD TOPO® (IGN)'} · ${p.n_troncons} tronçon${p.n_troncons > 1 ? 's' : ''} BD TOPO® regroupé${p.n_troncons > 1 ? 's' : ''} · ${fmt(geomLength(f.getGeometry()))} m mesurés sur la carte</div>
+    <div class="btn-row">
+      <button class="btn primary" id="d-save">Enregistrer</button>
+      <button class="btn" id="d-edit">Modifier le tracé</button>
+      ${p.trace_modifie ? '<button class="btn" id="d-reset">Rétablir le tracé IGN</button>' : ''}
+    </div>
+    <div id="info-status"></div>
+    <div class="note-bar">Source : IGN, BD TOPO® (édition décembre 2025), voirie retenue par la DGCL pour la DSR 2026 — Licence Ouverte. Les chemins, sentiers, routes empierrées, routes départementales et chemins ruraux ne sont pas comptabilisés.<br>Identifiants BD TOPO® (cleabs) : ${esc(ids.join(', '))}</div>
+  `);
+  $('d-save').addEventListener('click', saveDgf);
+  $('d-edit').addEventListener('click', () => startEdit(selectedDgf, 'dgf'));
+  if ($('d-reset')) $('d-reset').addEventListener('click', resetDgfTrace);
+}
+function saveDgf() {
+  const f = selectedDgf, id = f.get('id');
+  const nom = $('d-nom').value.trim(), obs = $('d-obs').value.trim();
+  const changes = [];
+  if ((f.get('nom') || '') !== nom) changes.push('Nom : ' + (f.get('nom') || '—') + ' → ' + (nom || '—'));
+  if ((f.get('observations') || '') !== obs) changes.push('Observations modifiées');
+  const before = dgfLabel(f);
+  f.set('nom', nom || null); f.set('observations', obs || null);
+  store.dgf[id] = Object.assign(store.dgf[id] || {}, { nom: nom || null, observations: obs || null });
+  saveStore();
+  if (changes.length) logEvent('dgf_fiche', { detail: before + ' : ' + changes.join(' ; '), coord: dgfCenter(f) });
+  dgfLayer.changed();
+  showDgf(f);
+  $('info-status').style.color = '#15803d';
+  $('info-status').textContent = changes.length ? '✓ Enregistré sur cet appareil.' : 'Aucune modification.';
+}
+function resetDgfTrace() {
+  const f = selectedDgf, id = f.get('id');
+  if (!confirm('Rétablir le tracé d\'origine de la BD TOPO® pour ' + dgfLabel(f) + ' ?')) return;
+  f.setGeometry(f.get('orig_geom').clone());
+  f.unset('trace_modifie');
+  if (store.dgf[id]) delete store.dgf[id].geometry;
+  saveStore();
+  logEvent('dgf_trace', { detail: 'Tracé de ' + dgfLabel(f) + ' rétabli (BD TOPO®)', coord: dgfCenter(f) });
+  showDgf(f);
+}
+
+/* ----- Parcelle ----- */
+function showParcel(parcel) {
+  const q = parcel.getProperties();
+  setInfo('Parcelle sélectionnée', q.section + ' ' + q.numero, '<span class="pill">Cadastre</span>', `
+    <div class="row"><div class="lbl">Référence cadastrale</div>${esc(q.id)}</div>
+    <div class="row"><div class="lbl">Contenance</div>${q.contenance != null ? q.contenance.toLocaleString('fr-FR') + ' m²' : '—'}</div>
+    <div class="row"><div class="lbl">Arpentée</div>${q.arpente ? 'Oui' : 'Non'}</div>
+    <div class="row"><div class="lbl">Créée / mise à jour</div>${esc(q.created) || '—'} / ${esc(q.updated) || '—'}</div>
+    <div class="note-bar">Source : Etalab / DGFiP — PCI Vecteur (lecture seule)</div>
+  `);
+}
+
+/* ----- Repères ----- */
+function repereFeatureFrom(r) {
+  const f = new ol.Feature({ geometry: new ol.geom.Point(ol.proj.fromLonLat([r.lon, r.lat])) });
+  f.setProperties({ id: r.id, titre: r.titre, operation: r.operation, assigne: r.assigne, priorite: r.priorite, statut: r.statut,
+    auteur: r.auteur, created: r.created, updated: r.updated, chemin_numero: r.chemin_numero });
+  return f;
+}
+function repereToRecord(f) {
+  const [lon, lat] = ol.proj.toLonLat(f.getGeometry().getCoordinates());
+  const p = f.getProperties();
+  return { id: p.id, lon: +lon.toFixed(7), lat: +lat.toFixed(7), titre: p.titre, operation: p.operation, assigne: p.assigne,
+    priorite: p.priorite, statut: p.statut, auteur: p.auteur, created: p.created, updated: p.updated, chemin_numero: p.chemin_numero };
+}
+function nearestVoie(coord) {
+  let best = null, bestD = Infinity;
+  chemVector.getFeatures().forEach(f => {
+    const cp = f.getGeometry().getClosestPoint(coord);
+    const d = Math.hypot(cp[0] - coord[0], cp[1] - coord[1]);
+    if (d < bestD) { bestD = d; best = { f, cp }; }
+  });
+  if (!best) return null;
+  const meters = ol.sphere.getDistance(ol.proj.toLonLat(coord), ol.proj.toLonLat(best.cp));
+  return meters <= 30 ? best.f.get('numero') : null;
+}
+function voieOptions(selected) {
+  const nums = [...new Set(chemVector.getFeatures().map(f => f.get('numero')))].sort((a, b) => a - b);
+  return '<select id="r-voie"><option value="">Aucune</option>' + nums.map(n =>
+    '<option value="' + n + '"' + (n === selected ? ' selected' : '') + '>n°' + n + '</option>').join('') + '</select>';
+}
+function showRepere(f, isNew) {
+  const p = f.getProperties();
+  setInfo(isNew ? 'Nouveau repère' : 'Repère', p.titre || 'Sans titre',
+    '<span class="pill solid" style="background:' + (REPERE_COLORS[p.statut] || '#999') + '">' + esc(p.statut) + '</span>', `
+    <div class="row"><div class="lbl">Problème constaté</div><input id="r-titre" type="text" value="${esc(p.titre)}" placeholder="ex : Fossé comblé, arbre tombé…"></div>
+    <div class="row"><div class="lbl">Opération à effectuer</div><textarea id="r-operation" placeholder="Que doit faire l'agent sur place ?">${esc(p.operation)}</textarea></div>
+    <div class="row"><div class="lbl">À réaliser par</div><input id="r-assigne" type="text" value="${esc(p.assigne)}" placeholder="Agent, service, entreprise…"></div>
+    <div class="two">
+      <div class="row"><div class="lbl">Priorité</div>${selectHtml('r-priorite', PRIORITE_OPTIONS, p.priorite)}</div>
+      <div class="row"><div class="lbl">Statut</div>${selectHtml('r-statut', STATUT_OPTIONS, p.statut)}</div>
+    </div>
+    <div class="two">
+      <div class="row"><div class="lbl">Posé par</div><input id="r-auteur" type="text" value="${esc(p.auteur)}"></div>
+      <div class="row"><div class="lbl">Voie concernée</div>${voieOptions(p.chemin_numero)}</div>
+    </div>
+    <div class="row meta">Posé le ${fmtDate(p.created)}${p.updated && p.updated !== p.created ? ' · modifié le ' + fmtDate(p.updated) : ''}</div>
+    <div class="btn-row">
+      <button class="btn primary" id="r-save">Enregistrer</button>
+      ${isNew ? '<button class="btn" id="r-cancel">Annuler</button>' : '<button class="btn danger" id="r-delete">Supprimer</button>'}
+    </div>
+    <div id="info-status"></div>
+  `);
+  $('r-save').addEventListener('click', saveRepere);
+  if ($('r-cancel')) $('r-cancel').addEventListener('click', () => { clearSelection(); clearInfo(); });
+  if ($('r-delete')) $('r-delete').addEventListener('click', deleteRepere);
+  repereLayer.changed();
+}
+function saveRepere() {
+  const f = currentRepere;
+  const titre = $('r-titre').value.trim();
+  if (!titre) { $('info-status').style.color = '#b45309'; $('info-status').textContent = 'Indiquez le problème constaté.'; return; }
+  const old = f.getProperties();
+  const voieVal = $('r-voie').value;
+  const neu = {
+    titre, operation: $('r-operation').value.trim(), assigne: $('r-assigne').value.trim(),
+    priorite: $('r-priorite').value, statut: $('r-statut').value, auteur: $('r-auteur').value.trim(),
+    chemin_numero: voieVal ? Number(voieVal) : null, updated: new Date().toISOString()
+  };
+  const isNew = !!old.draft;
+  f.setProperties(neu);
+  f.unset('draft');
+  if (neu.auteur) { setAgent(neu.auteur); $('agent-name').value = neu.auteur; }
+  const rec = repereToRecord(f);
+  const i = store.reperes.findIndex(r => r.id === rec.id);
+  if (i >= 0) store.reperes[i] = rec; else store.reperes.push(rec);
+  saveStore();
+  const where = { chemin: rec.chemin_numero, repere: rec.id, coord: [rec.lon, rec.lat] };
+  if (isNew) {
+    logEvent('repere_pose', Object.assign({ detail: titre + ' — ' + (neu.operation || 'opération non précisée') + (neu.assigne ? ' (à réaliser par ' + neu.assigne + ')' : '') }, where));
+  } else if (old.statut !== neu.statut) {
+    logEvent('repere_statut', Object.assign({ detail: '« ' + titre + ' » : ' + old.statut + ' → ' + neu.statut }, where));
+  } else {
+    logEvent('repere_modifie', Object.assign({ detail: '« ' + titre + ' »' }, where));
+  }
+  repereLayer.changed();
+  showRepere(f, false);
+  $('info-status').style.color = '#15803d';
+  $('info-status').textContent = '✓ Enregistré sur cet appareil.';
+}
+function deleteRepere() {
+  const f = currentRepere, rec = repereToRecord(f);
+  if (!confirm('Supprimer ce repère ?')) return;
+  repereSource.removeFeature(f);
+  store.reperes = store.reperes.filter(r => r.id !== rec.id);
+  saveStore();
+  logEvent('repere_supprime', { detail: '« ' + rec.titre + ' »', chemin: rec.chemin_numero, repere: rec.id, coord: [rec.lon, rec.lat] });
+  currentRepere = null; clearInfo();
+}
+function placeRepere(coord, titre) {
+  clearSelection();
+  const f = new ol.Feature({ geometry: new ol.geom.Point(coord) });
+  const now = new Date().toISOString();
+  f.setProperties({ id: uid(), titre: titre || '', operation: '', assigne: '', priorite: 'Normale', statut: 'À faire',
+    auteur: getAgent(), created: now, updated: now, chemin_numero: nearestVoie(coord), draft: true });
+  repereSource.addFeature(f);
+  currentRepere = f;
+  endMode();
+  $('sidebar').classList.remove('open');
+  showRepere(f, true);
+}
+
+/* ============================================================
+   Modes : repère, création de voie, édition de tracé
+   ============================================================ */
+let drawInt = null, modifyInt = null, snapInt = null, editBackup = null;
+const modebar = $('modebar');
+function showModebar(text, doneLabel) {
+  $('modebar-text').textContent = text;
+  $('mb-done').style.display = doneLabel ? '' : 'none';
+  if (doneLabel) $('mb-done').textContent = doneLabel;
+  modebar.style.display = 'flex';
+  document.body.classList.add('in-mode');
+}
+function setToolActive() {
+  $('tool-repere').classList.toggle('active', mode === 'repere');
+  $('tool-draw').classList.toggle('active', mode === 'draw');
+}
+function endMode() {
+  if (drawInt) { map.removeInteraction(drawInt); drawInt = null; }
+  if (modifyInt) { map.removeInteraction(modifyInt); modifyInt = null; }
+  if (snapInt) { map.removeInteraction(snapInt); snapInt = null; }
+  const prev = editFeature;
+  editFeature = null; editBackup = null; mode = 'select';
+  modebar.style.display = 'none';
+  document.body.classList.remove('in-mode');
+  map.getTargetElement().style.cursor = '';
+  setToolActive();
+  if (prev) { cheminLayer.changed(); dgfLayer.changed(); }
+}
+function cancelMode() {
+  if (mode === 'edit' && editFeature && editBackup) editFeature.setGeometry(editBackup);
+  if (mode !== 'select') endMode();
+}
+function startRepere() {
+  if (mode === 'repere') { cancelMode(); return; }
+  cancelMode(); clearSelection(); clearInfo();
+  mode = 'repere'; setToolActive();
+  map.getTargetElement().style.cursor = 'crosshair';
+  showModebar('Touchez ou cliquez sur la carte à l\'endroit du repère', null);
+  $('sidebar').classList.remove('open');
+}
+function startDraw() {
+  if (mode === 'draw') { cancelMode(); return; }
+  cancelMode(); clearSelection(); clearInfo();
+  mode = 'draw'; setToolActive();
+  drawInt = new ol.interaction.Draw({ source: new ol.source.Vector(), type: 'LineString', snapTolerance: 12 });
+  snapInt = new ol.interaction.Snap({ source: parcelVector, pixelTolerance: 10 });
+  map.addInteraction(drawInt); map.addInteraction(snapInt);
+  drawInt.on('drawend', evt => {
+    const n = nextNumero();
+    const geom = new ol.geom.MultiLineString([evt.feature.getGeometry().getCoordinates()]);
+    const props = { type: null, situation_cadastrale: 'Non renseignée', etat: null, longueur: Math.round(geomLength(geom)), superficie: null, historique: null, observations: null };
+    const key = 'new-' + n;
+    const f = new ol.Feature(Object.assign({}, props, { numero: n, key, record_id: null, source_geom: 'Créé sur carte' }));
+    f.setGeometry(geom);
+    chemVector.addFeature(f);
+    store.created.push({ key, numero: n, props, geometry: toGeomObj(geom) });
+    saveStore();
+    logEvent('voie_creee', { chemin: n, detail: 'Voie n°' + n + ' tracée sur la carte (' + fmt(props.longueur) + ' m)' });
+    setTimeout(() => {
+      endMode(); currentFeature = f; showChemin(f); updateSubtitle();
+      toast('Voie n°' + n + ' créée : complétez sa fiche puis enregistrez.');
+    }, 0);
+  });
+  showModebar('Cliquez pour poser chaque sommet · double-clic (ou « Terminer ») pour finir', 'Terminer');
+  $('sidebar').classList.remove('open');
+}
+function startEdit(f, kind) {
+  cancelMode();
+  mode = 'edit'; editKind = kind || 'voie'; editFeature = f; editBackup = f.getGeometry().clone();
+  modifyInt = new ol.interaction.Modify({ features: new ol.Collection([f]), pixelTolerance: 12, deleteCondition: ol.events.condition.never });
+  snapInt = new ol.interaction.Snap({ source: parcelVector, pixelTolerance: 10 });
+  map.addInteraction(modifyInt); map.addInteraction(snapInt);
+  showModebar('Tracé ' + (editKind === 'dgf' ? dgfLabel(f) : 'n°' + f.get('numero')) + ' : glisser un sommet = le déplacer · glisser sur un segment = ajouter un sommet · cliquer un sommet = le supprimer', 'Terminer');
+  cheminLayer.changed(); dgfLayer.changed();
+}
+function removeVertexAt(pixel) {
+  const g = editFeature.getGeometry();
+  const isMulti = g.getType() === 'MultiLineString';
+  const coords = isMulti ? g.getCoordinates() : [g.getCoordinates()];
+  let best = null;
+  coords.forEach((line, li) => line.forEach((c, ci) => {
+    const p = map.getPixelFromCoordinate(c);
+    const d = Math.hypot(p[0] - pixel[0], p[1] - pixel[1]);
+    if (d <= 14 && (!best || d < best.d)) best = { li, ci, d };
+  }));
+  if (!best) return;
+  if (coords[best.li].length <= 2) { toast('Un tracé doit garder au moins 2 sommets.'); return; }
+  coords[best.li].splice(best.ci, 1);
+  g.setCoordinates(isMulti ? coords : coords[0]);
+}
+function finishEdit() {
+  const f = editFeature, kind = editKind, n = f.get('numero');
+  const changed = JSON.stringify(toGeomObj(f.getGeometry())) !== JSON.stringify(toGeomObj(editBackup));
+  if (changed) {
+    const gobj = toGeomObj(f.getGeometry());
+    if (kind === 'dgf') {
+      const id = f.get('id');
+      store.dgf[id] = Object.assign(store.dgf[id] || {}, { geometry: gobj });
+      f.set('trace_modifie', true);
+      saveStore();
+      logEvent('dgf_trace', { detail: 'Tracé de ' + dgfLabel(f) + ' corrigé (' + fmt(geomLength(f.getGeometry())) + ' m)', coord: dgfCenter(f) });
+    } else {
+      const created = store.created.find(c => c.key === f.get('key'));
+      if (created) created.geometry = gobj;
+      else { f.set('source_geom', 'Tracé corrigé sur carte'); store.geoms[f.get('key')] = { geometry: gobj, source_geom: 'Tracé corrigé sur carte' }; }
+      saveStore();
+      logEvent('trace_modifie', { chemin: n, detail: 'Tracé de la voie n°' + n + ' corrigé (' + fmt(geomLength(f.getGeometry())) + ' m)' });
+    }
+    toast('Tracé enregistré sur cet appareil.');
+  }
+  endMode();
+  if (kind === 'dgf') { if (selectedDgf === f) showDgf(f); }
+  else if (currentFeature === f) showChemin(f);
+}
+$('mb-done').addEventListener('click', () => {
+  if (mode === 'draw' && drawInt) drawInt.finishDrawing();
+  else if (mode === 'edit') finishEdit();
+});
+$('mb-cancel').addEventListener('click', cancelMode);
+$('tool-repere').addEventListener('click', startRepere);
+$('tool-draw').addEventListener('click', startDraw);
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    if ($('modal-root').firstChild) closeModal();
+    else if (mode !== 'select') cancelMode();
+  }
+});
+
+/* ============================================================
+   Sélection sur la carte
+   ============================================================ */
+function pick(pixel, layer, tol) {
+  let hit = null;
+  map.forEachFeatureAtPixel(pixel, f => { hit = f; return true; }, { hitTolerance: tol, layerFilter: l => l === layer });
+  return hit;
+}
+map.on('singleclick', evt => {
+  $('sidebar').classList.remove('open');
+  if (mode === 'repere') { placeRepere(evt.coordinate); return; }
+  if (mode === 'edit') { removeVertexAt(evt.pixel); return; }
+  if (mode !== 'select') return;
+  const rep = repereLayer.getVisible() ? pick(evt.pixel, repereLayer, 6) : null;
+  const adr = !rep && addrLayer.getVisible() ? pickAddr(evt.pixel) : null;
+  const voie = !rep && !adr && cheminLayer.getVisible() ? pick(evt.pixel, cheminLayer, 6) : null;
+  const dgf = !rep && !adr && !voie && dgfLayer.getVisible() ? pick(evt.pixel, dgfLayer, 6) : null;
+  const parcel = !rep && !adr && !voie && !dgf && parcelLayer.getVisible() ? pick(evt.pixel, parcelLayer, 0) : null;
+  clearSelection();
+  if (rep) { currentRepere = rep; showRepere(rep, false); }
+  else if (adr) goAddress(adr, false);
+  else if (voie) { currentFeature = voie; showChemin(voie); }
+  else if (dgf) { selectedDgf = dgf; dgf.changed(); showDgf(dgf); }
+  else if (parcel) { selectedParcel = parcel; parcel.changed(); showParcel(parcel); }
+  else clearInfo();
+});
+map.on('pointermove', evt => {
+  if (mode !== 'select') return;
+  const hit = (repereLayer.getVisible() && pick(evt.pixel, repereLayer, 6)) ||
+    (addrLayer.getVisible() && pickAddr(evt.pixel)) ||
+    (cheminLayer.getVisible() && pick(evt.pixel, cheminLayer, 6)) ||
+    (dgfLayer.getVisible() && pick(evt.pixel, dgfLayer, 6)) ||
+    (parcelLayer.getVisible() && map.hasFeatureAtPixel(evt.pixel, { layerFilter: l => l === parcelLayer }));
+  map.getTargetElement().style.cursor = hit ? 'pointer' : '';
+});
+
+/* ============================================================
+   Fenêtres : historique, liste et statistiques
+   ============================================================ */
+const modalRoot = $('modal-root');
+function closeModal() { modalRoot.innerHTML = ''; }
+function openModal(title, subtitle, renderBody) {
+  modalRoot.innerHTML = '<div class="modal-backdrop"><div class="modal" role="dialog" aria-modal="true">' +
+    '<div class="modal-head"><div><h2>' + esc(title) + '</h2><div class="sub">' + esc(subtitle) + ' · édité le ' + new Date().toLocaleDateString('fr-FR') + '</div></div>' +
+    '<div class="modal-actions no-print"><button class="btn" id="m-print">🖨️ Imprimer</button><button class="btn" id="m-close">Fermer</button></div></div>' +
+    '<div class="modal-body" id="modal-body"></div></div></div>';
+  $('m-close').addEventListener('click', closeModal);
+  $('m-print').addEventListener('click', () => window.print());
+  modalRoot.firstChild.addEventListener('mousedown', e => { if (e.target === modalRoot.firstChild) closeModal(); });
+  renderBody($('modal-body'));
+}
+function zoomToEvent(ev) {
+  closeModal();
+  const view = map.getView();
+  if (ev.coord) { view.animate({ center: ol.proj.fromLonLat(ev.coord), zoom: 18, duration: 400 }); return; }
+  const feats = chemVector.getFeatures().filter(f => f.get('numero') === ev.chemin);
+  if (feats.length) view.fit(ol.extent.boundingExtent(feats.flatMap(f => vertexCoords(f.getGeometry()))), { padding: [80, 80, 80, 80], maxZoom: 18, duration: 400 });
+}
+
+function renderHistory(body) {
+  const state = { voie: 'all', type: 'all' };
+  const draw = () => {
+    const events = store.history.slice().sort((a, b) => b.ts.localeCompare(a.ts));
+    const voies = [...new Set(events.map(e => e.chemin).filter(n => n != null))].sort((a, b) => a - b);
+    const list = events.filter(e => (state.voie === 'all' || String(e.chemin) === state.voie || (state.voie === 'none' && e.chemin == null)) &&
+      (state.type === 'all' || e.type === state.type));
+    body.innerHTML = `
+      <div class="filters no-print">
+        <label>Voie<select id="h-voie"><option value="all">Toutes les voies</option><option value="none"${state.voie === 'none' ? ' selected' : ''}>Hors voie</option>${voies.map(n => '<option value="' + n + '"' + (state.voie === String(n) ? ' selected' : '') + '>n°' + n + '</option>').join('')}</select></label>
+        <label>Événement<select id="h-type"><option value="all">Tous</option>${Object.entries(EVENT_LABELS).map(([k, v]) => '<option value="' + k + '"' + (state.type === k ? ' selected' : '') + '>' + v + '</option>').join('')}</select></label>
+      </div>
+      ${list.length ? `<table class="data"><thead><tr><th>Date</th><th>Événement</th><th>Voie</th><th>Détail</th><th>Par</th></tr></thead><tbody>
+        ${list.map(e => `<tr class="clickable" data-id="${e.id}"><td class="n">${fmtDate(e.ts)}</td><td>${esc(EVENT_LABELS[e.type] || e.type)}</td><td>${e.chemin != null ? 'n°' + e.chemin : '—'}</td><td>${esc(e.detail)}</td><td>${esc(e.auteur)}</td></tr>`).join('')}
+      </tbody></table>` : '<div class="empty-msg">Aucun événement enregistré pour le moment. Les repères posés, tracés modifiés, voies créées et fiches modifiées apparaîtront ici.</div>'}`;
+    const hv = body.querySelector('#h-voie'), ht = body.querySelector('#h-type');
+    if (hv) hv.addEventListener('change', () => { state.voie = hv.value; draw(); });
+    if (ht) ht.addEventListener('change', () => { state.type = ht.value; draw(); });
+    body.querySelectorAll('tr.clickable').forEach(tr => tr.addEventListener('click', () => {
+      const ev = store.history.find(x => x.id === tr.dataset.id); if (ev) zoomToEvent(ev);
+    }));
+  };
+  draw();
+}
+
+function aggregateVoies() {
+  const byNum = new Map();
+  chemVector.getFeatures().forEach(f => {
+    const n = f.get('numero');
+    let a = byNum.get(n);
+    if (!a) { a = { numero: n, type: f.get('type') || null, etat: f.get('etat') || null, situation: f.get('situation_cadastrale') || null, troncons: 0, lenSig: 0, lenFiche: f.get('longueur') || 0 }; byNum.set(n, a); }
+    a.troncons++; a.lenSig += geomLength(f.getGeometry());
+  });
+  return [...byNum.values()].sort((a, b) => a.numero - b.numero);
+}
+function groupTable(list, key, labelOf, colorOf) {
+  const groups = new Map();
+  list.forEach(v => {
+    const k = v[key] || 'Non renseigné';
+    const g = groups.get(k) || { voies: 0, troncons: 0, lenSig: 0, lenFiche: 0 };
+    g.voies++; g.troncons += v.troncons; g.lenSig += v.lenSig; g.lenFiche += v.lenFiche; groups.set(k, g);
+  });
+  const rows = [...groups.entries()].sort((a, b) => b[1].lenSig - a[1].lenSig);
+  const tot = rows.reduce((t, [, g]) => ({ voies: t.voies + g.voies, troncons: t.troncons + g.troncons, lenSig: t.lenSig + g.lenSig, lenFiche: t.lenFiche + g.lenFiche }), { voies: 0, troncons: 0, lenSig: 0, lenFiche: 0 });
+  return `<table class="data"><thead><tr><th>${labelOf}</th><th class="n">Voies</th><th class="n">Tronçons</th><th class="n">Longueur tracé (m)</th><th class="n">Longueur fiche (m)</th></tr></thead><tbody>
+    ${rows.map(([k, g]) => `<tr><td>${colorOf(k)}${esc(k)}</td><td class="n">${g.voies}</td><td class="n">${g.troncons}</td><td class="n">${fmt(g.lenSig)}</td><td class="n">${fmt(g.lenFiche)}</td></tr>`).join('')}
+    <tr class="total"><td>Total</td><td class="n">${tot.voies}</td><td class="n">${tot.troncons}</td><td class="n">${fmt(tot.lenSig)}</td><td class="n">${fmt(tot.lenFiche)}</td></tr></tbody></table>`;
+}
+function renderStats(body) {
+  const voies = aggregateVoies();
+  const state = { type: 'all', etat: 'all' };
+  const opts = key => [...new Set(voies.map(v => v[key] || 'Non renseigné'))].sort();
+  const dot = k => '<span class="swatch-dot" style="background:' + (COLORS[k] || COLORS['null']) + '"></span>';
+  const repCount = s => store.reperes.filter(r => r.statut === s).length;
+  const draw = () => {
+    const list = voies.filter(v => (state.type === 'all' || (v.type || 'Non renseigné') === state.type) && (state.etat === 'all' || (v.etat || 'Non renseigné') === state.etat));
+    body.innerHTML = `
+      <h3>Par type de voie</h3>${groupTable(voies, 'type', 'Type', dot)}
+      <h3>Par état d'entretien</h3>${groupTable(voies, 'etat', 'État', () => '')}
+      <h3>Repères</h3><div class="meta">${repCount('À faire')} à faire · ${repCount('En cours')} en cours · ${repCount('Fait')} faits</div>
+      <h3>Liste des voies</h3>
+      <div class="filters no-print">
+        <label>Type<select id="s-type"><option value="all">Tous</option>${opts('type').map(o => '<option' + (state.type === o ? ' selected' : '') + '>' + esc(o) + '</option>').join('')}</select></label>
+        <label>État<select id="s-etat"><option value="all">Tous</option>${opts('etat').map(o => '<option' + (state.etat === o ? ' selected' : '') + '>' + esc(o) + '</option>').join('')}</select></label>
+      </div>
+      ${state.type !== 'all' || state.etat !== 'all' ? '<div class="meta" style="margin-bottom:8px">Filtre : ' + (state.type !== 'all' ? 'type « ' + esc(state.type) + ' » ' : '') + (state.etat !== 'all' ? 'état « ' + esc(state.etat) + ' »' : '') + '</div>' : ''}
+      <table class="data"><thead><tr><th>N°</th><th>Type</th><th>État</th><th>Situation cadastrale</th><th class="n">Tronçons</th><th class="n">Longueur tracé (m)</th><th class="n">Longueur fiche (m)</th></tr></thead><tbody>
+        ${list.map(v => `<tr><td>n°${v.numero}</td><td>${dot(v.type)}${esc(v.type || 'Non renseigné')}</td><td>${esc(v.etat || 'Non renseigné')}</td><td>${esc(v.situation || '—')}</td><td class="n">${v.troncons}</td><td class="n">${fmt(v.lenSig)}</td><td class="n">${fmt(v.lenFiche)}</td></tr>`).join('')}
+        <tr class="total"><td colspan="4">${list.length} voie${list.length > 1 ? 's' : ''}</td><td class="n">${list.reduce((s, v) => s + v.troncons, 0)}</td><td class="n">${fmt(list.reduce((s, v) => s + v.lenSig, 0))}</td><td class="n">${fmt(list.reduce((s, v) => s + v.lenFiche, 0))}</td></tr>
+      </tbody></table>
+      <div class="meta" style="margin-top:10px">Longueur tracé : mesurée sur la carte (somme des tronçons). Longueur fiche : valeur saisie dans la fiche de la voie (comptée une fois par voie). Voies sans tracé (ex. n°73) non comptées.</div>`;
+    const st = body.querySelector('#s-type'), se = body.querySelector('#s-etat');
+    st.addEventListener('change', () => { state.type = st.value; draw(); });
+    se.addEventListener('change', () => { state.etat = se.value; draw(); });
+  };
+  draw();
+}
+$('btn-history').addEventListener('click', () => openModal('Historique des repères et opérations', 'Commune de Simeyrols', renderHistory));
+$('btn-stats').addEventListener('click', () => openModal('Liste et statistiques de la voirie', 'Commune de Simeyrols', renderStats));
+
+/* ============================================================
+   Données : export / import, nom d'agent, menu mobile
+   ============================================================ */
+/* ============================================================
+   Recherche d'adresse et repérage d'un lieu
+   ============================================================ */
+let ADR = null;
+const searchEntries = [];
+const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+let parcelIdx = null;
+function parcelById(id) {
+  if (!parcelIdx || !parcelIdx.size) parcelIdx = new Map(parcelVector.getFeatures().map(p => [p.get('id'), p]));
+  return parcelIdx.get(id);
+}
+fetch('simeyrols_adressage.json').then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).then(d => {
+  ADR = d;
+  d.adresses.forEach(a => {
+    const f = new ol.Feature(Object.assign({}, a, { kind: 'adresse', geometry: new ol.geom.Point(ol.proj.fromLonLat([a.lon, a.lat])) }));
+    addrSource.addFeature(f);
+    searchEntries.push({ g: 'Adresses', label: a.label, sub: a.ld ? titleCase(a.ld) : '', n: norm(a.label + ' ' + (a.ld || '')), go: () => goAddress(f, true) });
+  });
+  d.voies.forEach(v => searchEntries.push({ g: 'Voies nommées', label: v.nom, sub: v.n + ' adresse' + (v.n > 1 ? 's' : ''), n: norm(v.nom), go: () => goBanVoie(v) }));
+  d.lieux_dits.forEach(l => {
+    addrSource.addFeature(new ol.Feature({ kind: 'ld', nom: l.nom, geometry: new ol.geom.Point(ol.proj.fromLonLat([l.lon, l.lat])) }));
+    searchEntries.push({ g: 'Lieux-dits', label: titleCase(l.nom), sub: 'Cadastre', n: norm(l.nom), go: () => goLieuDit(l) });
+  });
+}).catch(e => toast("Données d'adressage indisponibles (" + e.message + ')'));
+
+function pickAddr(pixel) {
+  let hit = null;
+  map.forEachFeatureAtPixel(pixel, f => { if (f.get('kind') === 'adresse') { hit = f; return true; } }, { hitTolerance: 6, layerFilter: l => l === addrLayer });
+  return hit;
+}
+function setSearchMarker(coord, label) {
+  searchSource.clear();
+  searchSource.addFeature(new ol.Feature({ geometry: new ol.geom.Point(coord), label }));
+}
+function clearSearch() {
+  searchSource.clear();
+  $('search-input').value = ''; $('search-clear').style.display = 'none'; hideResults();
+}
+function fitBox(b, maxZoom) {
+  map.getView().fit(ol.proj.transformExtent(b, 'EPSG:4326', 'EPSG:3857'), { padding: [90, 90, 90, 90], maxZoom: maxZoom || 18, duration: 500 });
+}
+function bindChips() {
+  $('info-body').querySelectorAll('.chip').forEach(c => c.addEventListener('click', () => {
+    if (c.dataset.voie) goVoie(Number(c.dataset.voie));
+    else if (c.dataset.dgf) { const f = dgfVector.getFeatures().find(x => x.get('id') === c.dataset.dgf); if (f) goDgf(f); }
+    else if (c.dataset.aid) { const f = addrSource.getFeatures().find(x => x.get('id') === c.dataset.aid); if (f) goAddress(f, true); }
+  }));
+}
+const placeButtons = (repereHandler, label) => `<div class="btn-row"><button class="btn primary" id="p-repere">📍 ${label}</button><button class="btn" id="p-clear">Effacer le repérage</button></div>`;
+
+function goAddress(f, fly) {
+  const a = f.getProperties(), coord = f.getGeometry().getCoordinates();
+  clearSelection();
+  setSearchMarker(coord, a.label);
+  if (fly) map.getView().animate({ center: coord, zoom: Math.max(map.getView().getZoom(), 18), duration: 500 });
+  const par = a.parcelle ? parcelById(a.parcelle) : null;
+  if (par) { selectedParcel = par; par.changed(); }
+  const voie = nearestVoie(coord);
+  setInfo('Adresse (BAN)', a.label, '<span class="pill">Adresse</span>', `
+    <div class="row"><div class="lbl">Commune</div>${esc(ADR ? ADR.commune.nom : '')} · ${esc(a.cp)}</div>
+    ${a.ld ? '<div class="row"><div class="lbl">Lieu-dit</div>' + esc(titleCase(a.ld)) + '</div>' : ''}
+    <div class="row"><div class="lbl">Parcelle cadastrale</div>${par ? esc(par.get('section') + ' ' + par.get('numero')) + ' · ' + fmt(par.get('contenance')) + ' m²' : esc(a.parcelle) || '—'}</div>
+    <div class="row"><div class="lbl">Voie de l'inventaire à moins de 30 m</div>${voie != null ? '<button class="chip" data-voie="' + voie + '">n°' + voie + '</button>' : 'Aucune'}</div>
+    <div class="row meta">Position : ${a.lat.toFixed(6)}, ${a.lon.toFixed(6)}</div>
+    ${placeButtons(null, 'Poser un repère ici')}
+    <div class="note-bar">Source : Base Adresse Nationale — Licence Ouverte 2.0.</div>
+  `);
+  $('p-repere').addEventListener('click', () => placeRepere(coord, 'Signalement — ' + a.label));
+  $('p-clear').addEventListener('click', () => { clearSearch(); clearSelection(); clearInfo(); });
+  bindChips();
+}
+function goBanVoie(v) {
+  clearSelection();
+  const center = ol.proj.fromLonLat([v.lon, v.lat]);
+  setSearchMarker(center, v.nom);
+  fitBox(v.bbox, 18);
+  const adrs = ADR.adresses.filter(a => a.voie === v.nom);
+  setInfo('Voie nommée (BAN)', v.nom, '<span class="pill">' + v.n + ' adresse' + (v.n > 1 ? 's' : '') + '</span>', `
+    <div class="row"><div class="lbl">Adresses numérotées</div>${adrs.map(a => '<button class="chip" data-aid="' + esc(a.id) + '">' + esc(a.numero) + '</button>').join('')}</div>
+    <div class="row meta">Le repère indique le centre des adresses numérotées de cette voie.</div>
+    ${placeButtons(null, 'Poser un repère…')}
+    <div class="note-bar">Source : Base Adresse Nationale — Licence Ouverte 2.0.</div>
+  `);
+  $('p-repere').addEventListener('click', () => startRepere());
+  $('p-clear').addEventListener('click', () => { clearSearch(); clearSelection(); clearInfo(); });
+  bindChips();
+}
+function goLieuDit(l) {
+  clearSelection();
+  const center = ol.proj.fromLonLat([l.lon, l.lat]);
+  setSearchMarker(center, titleCase(l.nom));
+  fitBox(l.bbox, 17);
+  const ext = ol.proj.transformExtent(l.bbox, 'EPSG:4326', 'EPSG:3857');
+  const voies = [...new Set(chemVector.getFeatures().filter(f => f.getGeometry().intersectsExtent(ext)).map(f => f.get('numero')))].sort((a, b) => a - b);
+  const dgf = dgfVector.getFeatures().filter(f => f.getGeometry().intersectsExtent(ext));
+  setInfo('Lieu-dit (cadastre)', titleCase(l.nom), '<span class="pill">Lieu-dit</span>', `
+    <div class="row"><div class="lbl">Voies de l'inventaire dans la zone</div>${voies.length ? voies.map(n => '<button class="chip" data-voie="' + n + '">n°' + n + '</button>').join('') : 'Aucune'}</div>
+    <div class="row"><div class="lbl">Voirie DGF dans la zone</div>${dgf.length ? dgf.map(f => '<button class="chip" data-dgf="' + esc(f.get('id')) + '">' + esc(dgfLabel(f)) + '</button>').join('') : 'Aucune'}</div>
+    <div class="row meta">Le repère indique le centre du lieu-dit (emprise cadastrale).</div>
+    ${placeButtons(null, 'Poser un repère…')}
+    <div class="note-bar">Source : Cadastre Etalab (DGFiP) — Licence Ouverte 2.0.</div>
+  `);
+  $('p-repere').addEventListener('click', () => startRepere());
+  $('p-clear').addEventListener('click', () => { clearSearch(); clearSelection(); clearInfo(); });
+  bindChips();
+}
+function goParcel(p) {
+  clearSelection(); searchSource.clear();
+  selectedParcel = p; p.changed(); showParcel(p);
+  map.getView().fit(p.getGeometry().getExtent(), { padding: [90, 90, 90, 90], maxZoom: 19, duration: 500 });
+}
+function goVoie(num) {
+  const feats = chemVector.getFeatures().filter(f => f.get('numero') === num);
+  if (!feats.length) return;
+  clearSelection(); searchSource.clear();
+  currentFeature = feats[0]; showChemin(feats[0]);
+  const ext = ol.extent.createEmpty();
+  feats.forEach(f => ol.extent.extend(ext, f.getGeometry().getExtent()));
+  map.getView().fit(ext, { padding: [90, 90, 90, 90], maxZoom: 18, duration: 500 });
+}
+function goDgf(f) {
+  clearSelection(); searchSource.clear();
+  selectedDgf = f; f.changed(); showDgf(f);
+  map.getView().fit(f.getGeometry().getExtent(), { padding: [90, 90, 90, 90], maxZoom: 18, duration: 500 });
+}
+
+function dynamicEntries(nq, toks) {
+  const out = [];
+  let m = nq.match(/^(?:n|no|numero|voie|chemin|chemin rural)? ?(\d{1,3})$/);
+  if (m) {
+    const seen = new Set();
+    chemVector.getFeatures().forEach(f => {
+      const n = f.get('numero');
+      if (!seen.has(n) && String(n).startsWith(m[1])) {
+        seen.add(n);
+        out.push({ g: 'Voirie (inventaire)', label: 'Voie n°' + n, sub: [f.get('type'), f.get('etat')].filter(Boolean).join(' · '), s: 0, num: n, go: () => goVoie(n) });
+      }
+    });
+    out.sort((a, b) => a.num - b.num);
+  }
+  dgfVector.getFeatures().forEach(f => {
+    const n = norm(f.get('ref') + ' ' + (f.get('nom') || ''));
+    if (toks.every(t => n.includes(t))) out.push({ g: 'Voirie DGF', label: dgfLabel(f), sub: 'Importance ' + f.get('importance'), s: 1, go: () => goDgf(f) });
+  });
+  m = nq.match(/^([a-z]{1,2}) ?0*(\d{1,4})$/);
+  if (m) {
+    const sec = m[1].toUpperCase(), num = String(Number(m[2]));
+    parcelVector.getFeatures()
+      .filter(p => p.get('section') === sec && String(Number(p.get('numero'))).startsWith(num))
+      .sort((a, b) => Number(a.get('numero')) - Number(b.get('numero')))
+      .forEach(p => out.push({ g: 'Parcelles', label: 'Parcelle ' + sec + ' ' + Number(p.get('numero')), sub: fmt(p.get('contenance')) + ' m²', s: 0, go: () => goParcel(p) }));
+  }
+  return out;
+}
+
+const GROUP_ORDER = ['Adresses', 'Voies nommées', 'Lieux-dits', 'Parcelles', 'Voirie (inventaire)', 'Voirie DGF'];
+let srItems = [], srActive = -1;
+const hideResults = () => { $('search-results').style.display = 'none'; srActive = -1; };
+function runSearch() {
+  const q = $('search-input').value, nq = norm(q);
+  $('search-clear').style.display = q ? 'block' : 'none';
+  const box = $('search-results');
+  if (nq.length < 2) { hideResults(); return; }
+  const toks = nq.split(' ');
+  const base = searchEntries.filter(e => toks.every(t => e.n.includes(t)))
+    .map(e => Object.assign({}, e, { s: e.n.startsWith(toks[0]) ? 0 : e.n.includes(' ' + toks[0]) ? 1 : 2 }));
+  const all = base.concat(dynamicEntries(nq, toks));
+  srItems = []; let html = '';
+  GROUP_ORDER.forEach(g => {
+    const items = all.filter(e => e.g === g);
+    if (!items.length) return;
+    items.sort((a, b) => (a.s - b.s) || a.label.localeCompare(b.label, 'fr', { numeric: true }));
+    html += '<div class="sr-group">' + esc(g) + (items.length > 6 ? ' · ' + items.length : '') + '</div>';
+    items.slice(0, 6).forEach(e => {
+      html += '<div class="sr-item" data-i="' + srItems.length + '"><span>' + esc(e.label) + '</span><small>' + esc(e.sub) + '</small></div>';
+      srItems.push(e);
+    });
+  });
+  box.innerHTML = html || '<div class="sr-empty">Aucun résultat pour « ' + esc(q) + ' ». Essayez un nom de voie, un numéro ou un lieu-dit.</div>';
+  box.style.display = 'block'; srActive = -1;
+  box.querySelectorAll('.sr-item').forEach(el => el.addEventListener('mousedown', ev => { ev.preventDefault(); chooseResult(Number(el.dataset.i)); }));
+}
+function chooseResult(i) {
+  const e = srItems[i]; if (!e) return;
+  hideResults();
+  $('search-input').value = e.label;
+  $('search-clear').style.display = 'block';
+  $('sidebar').classList.remove('open');
+  e.go();
+}
+function moveActive(d) {
+  const els = $('search-results').querySelectorAll('.sr-item'); if (!els.length) return;
+  srActive = (srActive + d + els.length) % els.length;
+  els.forEach((el, k) => el.classList.toggle('active', k === srActive));
+  els[srActive].scrollIntoView({ block: 'nearest' });
+}
+$('search-input').addEventListener('input', runSearch);
+$('search-input').addEventListener('focus', runSearch);
+$('search-input').addEventListener('keydown', e => {
+  if (e.key === 'ArrowDown') { e.preventDefault(); moveActive(1); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); moveActive(-1); }
+  else if (e.key === 'Enter') { e.preventDefault(); chooseResult(srActive >= 0 ? srActive : 0); }
+  else if (e.key === 'Escape') { hideResults(); e.target.blur(); }
+});
+$('search-clear').addEventListener('click', () => { clearSearch(); $('search-input').focus(); });
+document.addEventListener('mousedown', e => { if (!e.target.closest('.search')) hideResults(); });
+
+$('tool-export').addEventListener('click', () => {
+  const blob = new Blob([JSON.stringify(Object.assign({ commune: 'Simeyrols', version: 1, exported: new Date().toISOString() }, store), null, 1)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'simeyrols_modifications_' + new Date().toISOString().slice(0, 10) + '.json';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+});
+$('tool-import').addEventListener('click', () => $('import-file').click());
+$('import-file').addEventListener('change', async e => {
+  const file = e.target.files[0]; e.target.value = '';
+  if (!file) return;
+  try {
+    const data = JSON.parse(await file.text());
+    if (data.commune !== 'Simeyrols') throw new Error('ce fichier ne concerne pas Simeyrols');
+    if (!confirm('Remplacer les modifications de cet appareil par celles du fichier ?')) return;
+    store = Object.assign(emptyStore(), { attrs: data.attrs, geoms: data.geoms, created: data.created, reperes: data.reperes, history: data.history, dgf: data.dgf || {} });
+    saveStore(); location.reload();
+  } catch (err) { toast('Import impossible : ' + err.message); }
+});
+$('agent-name').value = getAgent();
+$('agent-name').addEventListener('change', e => setAgent(e.target.value.trim()));
+$('menu-btn').addEventListener('click', e => { e.stopPropagation(); $('sidebar').classList.toggle('open'); });
+</script>
+</body>
+</html>
